@@ -82,6 +82,14 @@ game runs (Wayland vs XWayland). On the author's setup the final state is
 **borderless** (`fullscreen=0`, `nowindowborder=1`), chosen for these
 reasons:
 
+> **Note — "fullscreen" vs what you actually have:** borderless fills the
+> whole screen and is easy to mistake for true fullscreen. The two feel the
+> same at a glance but behave differently at the display level. Check your
+> `cs2_video.txt`: `setting.fullscreen "0"` + `setting.nowindowborder "1"` =
+> borderless; plain Fullscreen is `setting.fullscreen "1"`. Always switch
+> modes in-game (Settings → Video) — CS2 rewrites this file itself at launch,
+> so manual edits don't stick.
+
 - **True fullscreen was the unreliable mode before the fix.** While CS2 was
   running on XWayland, forcing true exclusive fullscreen produced
   launch-to-launch chaos: sometimes severe input lag or the stuck-mouse bug,
