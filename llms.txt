@@ -4,7 +4,7 @@
 > Wayland desktops. Made for the Ubuntu Steam Snap. Also works with native and
 > Flatpak Steam installs. Bash only. No root. No Python. Fully reversible.
 
-Version: v1.0.0. License: MIT.
+Version: v1.1.0. License: MIT.
 
 ## Problem and fix
 

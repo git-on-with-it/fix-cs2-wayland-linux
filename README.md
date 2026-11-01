@@ -4,7 +4,7 @@ This script fixes two related CS2 (Counter-Strike 2, native Linux) bugs on
 Wayland desktops. It is for the Ubuntu Steam Snap in particular. It also works
 with other Steam installs. It does not need root. It does not need Python.
 
-Version: **v1.0.0**. Run `fix-cs2-wayland --version` to print it.
+Version: **v1.1.0**. Run `fix-cs2-wayland --version` to print it.
 
 ## Background
 
