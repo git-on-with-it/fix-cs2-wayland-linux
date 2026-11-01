@@ -74,6 +74,37 @@ Why CS2 is still broken even though the runtime fix shipped: **CS2 does not use 
 - Re-running is safe (idempotent), and it repairs itself after CS2 or
   Steam Runtime updates.
 
+## Display mode: fullscreen vs borderless
+
+The script deliberately **does not touch** CS2's display-mode settings
+(`~/…/userdata/<UID>/730/local/cfg/cs2_video.txt`); it only fixes where the
+game runs (Wayland vs XWayland). On the author's setup the final state is
+**borderless** (`fullscreen=0`, `nowindowborder=1`), chosen for these
+reasons:
+
+- **True fullscreen was the unreliable mode before the fix.** While CS2 was
+  running on XWayland, forcing true exclusive fullscreen produced
+  launch-to-launch chaos: sometimes severe input lag or the stuck-mouse bug,
+  sometimes the desktop's GNOME top bar/menus remained visible over a
+  "fullscreen" game, sometimes the game reverted to borderless on its own
+  next launch (and the config values set did not reliably stick — CS2
+  rewrites `cs2_video.txt` itself at launch).
+- **Borderless was the only mode that behaved predictably** on the Wayland
+  desktop (with the cosmetic cost that GNOME's top bar and dock stay clickable).
+- **Important caveat:** all pre-fix fullscreen experiments happened while
+  CS2 was still actually on X11/XWayland (the bug that stalled it). Now that
+  CS2 runs on real Wayland, exclusive fullscreen may behave completely
+  differently — it simply has not been retested on this machine yet.
+
+**Community test (voluntary):** after applying this fix, if you were affected
+by the lag-with-fullscreen symptom, try switching Settings → Video to real
+Fullscreen (with the script installed, i.e. on native Wayland), play a round,
+and compare input lag vs borderless; then report your result on the issue
+thread above. Any finding — better, same, or worse — is useful data for the
+csgo-osx-linux#4354 discussion. Your `cs2_video.txt` is user-owned config:
+note its values before experimenting (see the `--status` output above for the
+paths we manage, or back the file up manually).
+
 ## Install
 
 ```bash
