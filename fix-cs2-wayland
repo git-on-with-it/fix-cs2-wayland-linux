@@ -24,7 +24,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 ACTION="apply"
 FORCE=0
@@ -146,6 +146,34 @@ show_status() {
         [ -n "$f" ] || continue
         echo "  $f"
         sed -n 's/^\([ \t]*\)\(.*SDL_VIDEO_DRIVER=.*\)/\1-> \2/p' "$f" | head -3 | sed 's/^/    /'
+        # Upstream-fix check: CS2 bundles its own libSDL3. The mouse bug is fixed
+        # upstream in SDL 3.4.18. If CS2's bundled copy reaches that version,
+        # this script is no longer needed.
+        sdl_img="${f%/game/cs2.sh}/game/bin/linuxsteamrt64/libSDL3.so.0"
+        if [ -f "$sdl_img" ]; then
+            sdl_ver=$(LC_ALL=C grep -aom1 -E '3\.[0-9]+\.[0-9]+(\.[0-9]+)?' "$sdl_img" 2>/dev/null || true)
+            sdl_head=""
+            LC_ALL=C grep -aqE "\-HEAD" "$sdl_img" 2>/dev/null && sdl_head=" (dev snapshot)" || true
+            sdl_ver=${sdl_ver%%-*}
+            if [ -n "$sdl_ver" ]; then
+                fixed=$(awk 'BEGIN{split(ARGV[1],a,"."); split(ARGV[2],b,"."); v=(a[1]*1000000+a[2]*1000+a[3]); w=(b[1]*1000000+b[2]*1000+b[3]); print (v>=w) ? 1 : 0}' "$sdl_ver" "3.4.18")
+                if [ "$fixed" = "1" ]; then
+                    if [ -n "$sdl_head" ]; then
+                        echo "    -> Bundled SDL : $sdl_ver$sdl_head"
+                        echo "    -> This dev snapshot may contain the upstream 3.4.18 fix. If the mouse"
+                        echo "       bug still occurs without this script, Valve's CS2 copy is old and"
+                        echo "       the script stays useful; keep or revert both are safe."
+                    else
+                        echo "    -> Bundled SDL : $sdl_ver (includes the upstream 3.4.18 mouse fix)"
+                        echo "    -> Upstream is fixed: you can run '$(basename "$0") --revert' and use stock CS2."
+                    fi
+                else
+                    echo "    -> Bundled SDL : $sdl_ver (pre-3.4.18: contains the XInput2 mouse bug)"
+                fi
+            else
+                echo "    -> Bundled SDL : unknown version ($sdl_img)"
+            fi
+        fi
     done
     echo
     echo "=== SteamLinuxRuntime_sniper entry points (${#SLR_ENTRIES[@]}) ==="
