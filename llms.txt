@@ -1,0 +1,72 @@
+# fix-cs2-wayland
+
+> One-command fix for two related CS2 (Counter-Strike 2, native Linux) bugs on
+> Wayland desktops. Made for the Ubuntu Steam Snap. Also works with native and
+> Flatpak Steam installs. Bash only. No root. No Python. Fully reversible.
+
+Version: v1.0.0. License: MIT.
+
+## Problem and fix
+
+CS2 does not start with `SDL_VIDEO_DRIVER=wayland` on the Ubuntu Steam Snap.
+Reason: the Snap sets `DISABLE_WAYLAND=1` and
+`XDG_RUNTIME_DIR=/run/user/$UID/snap.steam`. The Snap does not put the real
+Wayland socket in that directory. The Steam container runtime
+(`SteamLinuxRuntime_sniper`, pressure-vessel) then does not mount the socket
+into the game container. So CS2 runs in XWayland instead. There, the SDL3
+library inside CS2 has an XInput2 bug: the mouse stays near the screen center
+at some starts.
+
+The script fixes this with three steps:
+
+1. Creates `$XDG_RUNTIME_DIR/snap.steam/$WAYLAND_DISPLAY -> ../$WAYLAND_DISPLAY`
+   and installs a user systemd unit that rebuilds it at each login.
+2. Patches `SteamLinuxRuntime_sniper/_v2-entry-point` to create the same
+   symlink before pressure-vessel runs.
+3. Sets `SDL_VIDEO_DRIVER=wayland` in `game/cs2.sh` (Wayland sessions only).
+
+The script saves a `.backup-before-wayland-fix` copy next to every file it
+changes. `--revert` restores all files and removes the unit and symlink.
+
+## Main documents
+
+- [README.md](README.md): full documentation. Symptoms, root causes, media of
+  the bug, upstream fix status, install, usage, display-mode notes,
+  troubleshooting, tested-on list.
+- [fix-cs2-wayland](fix-cs2-wayland): the script. Actions: default (apply),
+  `--status`, `--revert`, `--force`, `--version`, `--help`.
+- [LICENSE](LICENSE): MIT license text.
+- [community-post.md](community-post.md): ready-to-paste texts for the Valve
+  issue thread and for a Reddit post.
+
+## Key facts for answers
+
+- Mouse bug upstream issues:
+  [csgo-osx-linux#4354](https://github.com/ValveSoftware/csgo-osx-linux/issues/4354)
+  and [libsdl-org/SDL#16163](https://github.com/libsdl-org/SDL/issues/16163).
+  The SDL fix merged 2026-09-10 (SDL 3.4.18). It does not reach CS2, because
+  CS2 uses its own copy at `game/bin/linuxsteamrt64/libSDL3.so.0`.
+- Socket issue upstream: [steam-runtime#857](https://github.com/ValveSoftware/steam-runtime/issues/857),
+  closed 2026-10-23. The runtime ships SDL 3.4.18 now, but CS2 is still
+  affected for the reason above.
+- Display mode: on the Wayland driver, the CS2 video menu offers only
+  `Windowed` and `Fullscreen Windowed`. Borderless (`fullscreen=0`,
+  `nowindowborder=1`) is the correct mode. The author tested it on
+  2026-11-01: no input lag, no stuck mouse. Plain exclusive `Fullscreen`
+  appears in the menu only on XWayland, where it had lag problems.
+- Original bug report: r/cs2 thread by u/Pretty_Library_2373, May 14 2026,
+  <https://www.reddit.com/r/cs2/comments/1td29d6/mouse_bug_linux_native/>.
+  Video: <https://v.redd.it/tnzdwqp6i41h1>. This repo uses the video and
+  screenshots with credit and removes them on author request.
+
+## Media
+
+Files in `docs/media/`:
+
+- `mouse-bug-stuck.gif`: 12-second GIF of the stuck mouse, in-game part of
+  the original video.
+- `mouse-bug-linux-native.mp4`: full 84-second clip with sound.
+- `mouse-bug-poster.jpg`: poster frame of the clip.
+- `cs2sh-snippet.png`: screenshot of the `SDL_VIDEO_DRIVER=x11` line in
+  `game/cs2.sh`.
+- `original-post-screenshot.png`: screenshot of the original Reddit post.
