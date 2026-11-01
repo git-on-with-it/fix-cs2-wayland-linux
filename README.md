@@ -5,6 +5,18 @@ Wayland desktops — Ubuntu Steam Snap in particular. No root, no python.
 
 Current version: **v1.0.0** (see `fix-cs2-wayland --version`).
 
+## Origin
+
+This fix was created after a **clean Ubuntu install (Steam Snap, GNOME
+Wayland)** reproduced the stuck-mouse bug minutes into the first CS2 launch —
+same symptom everyone else reports. Searching found several threads and
+workarounds (restart CS2 and hope, switch to X11, gamescope, Xorg session
+…), but no real fix; every suggestion either failed to launch CS2 on the
+Snap or left the bug. The workspace was instrumented instead: the running
+game's container was inspected, SDL initialization was tested directly
+inside the Steam Linux Runtime, and the two-part root cause below was
+confirmed — this script is what came out of that.
+
 ## Symptoms it fixes
 
 1. **Mouse barely moves in-game** (stuck near center, only a few mm of movement,

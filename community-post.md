@@ -10,7 +10,7 @@ Target: https://github.com/ValveSoftware/csgo-osx-linux/issues/4354
 
 **Subject: Root cause found for the "stuck mouse" AND the "SDL_VIDEO_DRIVER=wayland won't launch" reports on Ubuntu's Steam Snap — script + diagnosis**
 
-Short version: on Ubuntu's Steam **Snap**, setting `SDL_VIDEO_DRIVER=wayland` does fail to launch CS2 — but it's not CS2 or SDL to blame; it's the Snap's isolated runtime dir, and it's fixable in one command.
+Short version: on Ubuntu's Steam **Snap**, setting `SDL_VIDEO_DRIVER=wayland` does fail to launch CS2 — but it's not CS2 or SDL to blame; it's the Snap's isolated runtime dir, and it's fixable in one command. (Context: I hit the stuck-mouse bug on a **clean Ubuntu install** — Snap Steam + GNOME Wayland — and while every thread and workaround found while searching either didn't launch CS2 or didn't fix the mouse, this one does.)
 
 **Diagnosis (verified on Ubuntu 26.10, GNOME Wayland, Steam Snap 1.0.0.87:**)
 
