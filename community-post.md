@@ -1,56 +1,103 @@
 # Community Post — ready to publish
 
-Below are two ready-to-paste announcements. Pick the matching target.
-Replace `<REPO_URL>` with your published GitHub repository URL once pushed.
+Two ready-to-paste texts follow. Use the text that matches your target.
+Replace `<REPO_URL>` with your published GitHub repository URL before posting.
 
 ---
 
 ## 1) Comment for the Valve issue thread
+
 Target: https://github.com/ValveSoftware/csgo-osx-linux/issues/4354
 
-**Subject: Root cause found for the "stuck mouse" AND the "SDL_VIDEO_DRIVER=wayland won't launch" reports on Ubuntu's Steam Snap — script + diagnosis**
+**Root cause found for the "stuck mouse" and for the "SDL_VIDEO_DRIVER=wayland does not start" reports on the Ubuntu Steam Snap. Script and diagnosis included.**
 
-Short version: on Ubuntu's Steam **Snap**, setting `SDL_VIDEO_DRIVER=wayland` does fail to launch CS2 — but it's not CS2 or SDL to blame; it's the Snap's isolated runtime dir, and it's fixable in one command. (Context: I hit the stuck-mouse bug on a **clean Ubuntu install** — Snap Steam + GNOME Wayland — and while every thread and workaround found while searching either didn't launch CS2 or didn't fix the mouse, this one does.)
+I found this bug after a clean Ubuntu install (Steam Snap, GNOME Wayland).
+CS2 showed the bug in the first session. A search found no working fix.
+Existing suggestions did not fix the mouse, or CS2 did not start on the Snap.
 
-**Diagnosis (verified on Ubuntu 26.10, GNOME Wayland, Steam Snap 1.0.0.87:**)
+I inspected the running game container. I tested SDL inside the Steam Linux
+Runtime. Results, verified on Ubuntu 26.10, GNOME Wayland, Steam Snap
+1.0.0.87:
 
-1. The mouse-stuck bug occurs when CS2 runs through **XWayland**. The stock `game/cs2.sh` forces `export SDL_VIDEO_DRIVER=x11`, which on Wayland desktops means XWayland, where CS2's bundled SDL3 mis-decodes XInput2 relative valuators (see libsdl-org/SDL#16163) — some launches lose all horizontal/vertical movement.
-2. Switching to `SDL_VIDEO_DRIVER=wayland` historically "doesn't launch" on the Snap because the Snap sets `DISABLE_WAYLAND=1` and repoints `XDG_RUNTIME_DIR` to `/run/user/$UID/snap.steam` **without** linking the real Wayland socket there (`/snap/steam/279/bin/desktop-launch`, ~line 275, skips that block because of `DISABLE_WAYLAND=1`). When `SteamLinuxRuntime_sniper` (pressure-vessel) builds CS2's container, `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` doesn't exist, so the socket is never mounted — SDL can't connect and the game exits.
+**1. The mouse bug happens in XWayland.**
+
+- `game/cs2.sh` sets `export SDL_VIDEO_DRIVER=x11`.
+- On a Wayland desktop, this runs CS2 in XWayland.
+- The SDL3 library inside CS2 decodes XInput2 relative valuators wrongly
+  there (libsdl-org/SDL#16163). Some starts lose the mouse movement.
+
+**2. `SDL_VIDEO_DRIVER=wayland` does not start on the Snap because the socket
+is missing.**
+
+- The Snap sets `DISABLE_WAYLAND=1`.
+- The Snap sets `XDG_RUNTIME_DIR=/run/user/$UID/snap.steam`.
+- The Snap launcher (`/snap/steam/*/bin/desktop-launch`, near line 275)
+  skips the socket link because of `DISABLE_WAYLAND=1`.
+- The runtime (`SteamLinuxRuntime_sniper`, pressure-vessel) looks for
+  `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY`. The file does not exist.
+- The runtime does not mount the socket into the game container.
+- SDL cannot connect. CS2 exits.
 
 **Evidence:**
-- Inside the running sniper container, `SDL_Init(SDL_INIT_VIDEO)` + Vulkan window creation succeed and `SDL_GetCurrentVideoDriver()` returns `wayland` once the socket link exists.
-- After the fix, CS2 runs with **no X11 window at all** (no XWayland), and the stuck-mouse symptom is gone across many launches.
 
-**Fix (one command, user-level, idempotent, reversible):** <REPO_URL>
+- I created the socket link. Then I ran `SDL_Init(SDL_INIT_VIDEO)` and
+  Vulkan window creation inside the running sniper container. Both
+  succeeded. `SDL_GetCurrentVideoDriver()` returned `wayland`.
+- After the fix, CS2 runs with no X11 window (no XWayland). The mouse bug
+  did not occur again in many starts.
 
-`fix-cs2-wayland` (bash, no sudo/python):
-- links `$XDG_RUNTIME_DIR/snap.steam/$WAYLAND_DISPLAY -> ../$WAYLAND_DISPLAY` and installs a tiny user systemd oneshot to keep it across logins,
-- patches `SteamLinuxRuntime_sniper/_v2-entry-point` to do the same before pressure-vessel runs,
-- sets `SDL_VIDEO_DRIVER=wayland` in `game/cs2.sh`,
-- writes a `.backup-before-wayland-fix` next to every file it touches; `--revert` restores everything.
+**Fix (one command, no root, reversible):** <REPO_URL>
 
-**Suggested Valve-side fixes (either one):**
-- Drop `DISABLE_WAYLAND=1` from the snap's `desktop-launch` gate, or create the compat symlink regardless of that flag;
-- and/or have pressure-vessel fall back to probing `<XDG_RUNTIME_DIR>/../$WAYLAND_DISPLAY` (it already accepts such symlinks fine).
+`fix-cs2-wayland` (bash, no sudo, no Python):
 
-**Note on the SDL fix timeline:** steam-runtime#857 was closed on 2026-10-23 — Steam Linux Runtime sniper now ships SDL 3.4.18, which contains the upstream XInput2 fix (libsdl-org/SDL PR #16267). CS2 however ships **its own** `libSDL3.so.0` in `game/bin/linuxsteamrt64/`, so it never picks up the runtime fix — that's why this issue stays open with fresh reports even after the runtime closed. Fixing the CS2-bundled SDL (or dropping the `x11` default in `cs2.sh`) is the remaining Valve-side step.
+- Creates `$XDG_RUNTIME_DIR/snap.steam/$WAYLAND_DISPLAY -> ../$WAYLAND_DISPLAY`
+  and installs a user systemd unit. The symlink is rebuilt at each login.
+- Patches `SteamLinuxRuntime_sniper/_v2-entry-point` to create the same
+  symlink before pressure-vessel runs.
+- Sets `SDL_VIDEO_DRIVER=wayland` in `game/cs2.sh`.
+- Saves a `.backup-before-wayland-fix` copy next to every file it changes.
+  `--revert` restores all backups.
 
-If others on the Snap can test and confirm (`fix-cs2-wayland --status` shows what it detected), that would strengthen the case. The upstream SDL fix exists already; CS2 just ships its own copy, so the snap-side socket fix is the piece Valve can land fastest.
+**Notes on the SDL fix timeline:** steam-runtime#857 closed on 2026-10-23.
+Steam Linux Runtime sniper now ships SDL 3.4.18. SDL 3.4.18 contains the
+upstream XInput2 fix (libsdl-org/SDL PR #16267). But CS2 uses its own
+`libSDL3.so.0` in `game/bin/linuxsteamrt64/`. Thus the runtime fix does not
+reach CS2. Reports continue after #857 closed for this reason.
+
+**Suggested Valve-side fixes (one item is enough):**
+
+1. Remove `DISABLE_WAYLAND=1` from the Snap launcher gate, or create the
+   compat symlink in all cases.
+2. Or: let pressure-vessel also look at
+   `<XDG_RUNTIME_DIR>/../$WAYLAND_DISPLAY`. It already accepts such symlinks.
+
+Can other Snap users test and confirm? Run
+`fix-cs2-wayland --status`. It shows what it detected. The Snap-side socket
+fix is the fastest item Valve can land.
 
 ---
 
 ## 2) Reddit post
-Suggested title: **Fix: CS2 Linux native stuck-mouse bug on Ubuntu (Wayland) — and why switching cs2.sh to Wayland wouldn't launch**
+
+Suggested title: **Fix: CS2 Linux native stuck-mouse bug on Ubuntu (Wayland) — and why the cs2.sh Wayland change did not start**
 
 Body:
 
-If you're on Ubuntu with the **Snap Steam**, you've probably seen both of these:
-1. In-game mouse randomly gets stuck near the center (only a few mm of movement) → restarting CS2 until it "gets lucky",
-2. Editing `game/cs2.sh` to `SDL_VIDEO_DRIVER=wayland` as people suggest → game refuses to launch at all.
+Are you on Ubuntu with the Snap Steam? Then you may know both problems:
 
-Both have one common root: CS2 forced to X11 = XWayland = a known SDL3 relative-mouse bug, and the Snap hides your Wayland socket from the game's container so the Wayland switch fails with no useful error.
+1. The mouse stays near the center in CS2. Only a few millimeters of
+   movement remain. A restart helps sometimes.
+2. You set `SDL_VIDEO_DRIVER=wayland` in `game/cs2.sh`, as some threads
+   suggest. CS2 then does not start at all. There is no useful error.
 
-**One-command fix (no sudo, fully reversible):** <REPO_URL>
+The root causes are two:
+
+- `cs2.sh` forces X11. On a Wayland desktop this is XWayland. There, the SDL3
+  library in CS2 has a known relative-mouse bug.
+- The Snap hides the Wayland socket from the game container. Thus the Wayland
+  change fails without a message.
+
+**One-command fix (no sudo, reversible):** <REPO_URL>
 
 ```
 sudo apt install git   # if needed
@@ -58,8 +105,20 @@ git clone <REPO_URL> && cd fix-cs2-wayland
 ./fix-cs2-wayland
 ```
 
-Then fully restart Steam + CS2. `--status` shows what it detected, `--revert` puts everything back exactly as before (it saves per-file backups).
+Then stop Steam and CS2 fully. Start Steam again.
 
-Tested on Ubuntu 26.10 GNOME Wayland + Steam Snap: 0 stuck-mouse launches since, and the game now runs as a true Wayland window. Works also on native/Flatpak Steam installs. Bash-only, ~10 lines changed on your system, everything backed up.
+- `fix-cs2-wayland --status` shows what the script detected.
+- `fix-cs2-wayland --revert` puts every file back. The script saves a backup
+  next to each file it changes.
 
-**Original report & video (credit u/Pretty_Library_2373):** <https://www.reddit.com/r/cs2/comments/1td29d6/mouse_bug_linux_native/> — a 30-second demo GIF and the full 84-second clip are embedded in the repo README, so newcomers can recognize their exact symptom at a glance and land directly on the fix.
+Tested on Ubuntu 26.10, GNOME Wayland, Steam Snap:
+
+- No stuck-mouse event since the fix.
+- CS2 runs as a true Wayland window now.
+- The script also works with native and Flatpak Steam installs.
+- Bash only. The script changes about 10 lines on your system. All backups
+  are saved.
+
+**Original report and video (credit u/Pretty_Library_2373):**
+<https://www.reddit.com/r/cs2/comments/1td29d6/mouse_bug_linux_native/>
+A demo GIF and the full 84-second clip are in the repo README.
