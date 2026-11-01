@@ -33,6 +33,8 @@ Short version: on Ubuntu's Steam **Snap**, setting `SDL_VIDEO_DRIVER=wayland` do
 - Drop `DISABLE_WAYLAND=1` from the snap's `desktop-launch` gate, or create the compat symlink regardless of that flag;
 - and/or have pressure-vessel fall back to probing `<XDG_RUNTIME_DIR>/../$WAYLAND_DISPLAY` (it already accepts such symlinks fine).
 
+**Note on the SDL fix timeline:** steam-runtime#857 was closed on 2026-10-23 — Steam Linux Runtime sniper now ships SDL 3.4.18, which contains the upstream XInput2 fix (libsdl-org/SDL PR #16267). CS2 however ships **its own** `libSDL3.so.0` in `game/bin/linuxsteamrt64/`, so it never picks up the runtime fix — that's why this issue stays open with fresh reports even after the runtime closed. Fixing the CS2-bundled SDL (or dropping the `x11` default in `cs2.sh`) is the remaining Valve-side step.
+
 If others on the Snap can test and confirm (`fix-cs2-wayland --status` shows what it detected), that would strengthen the case. The upstream SDL fix exists already; CS2 just ships its own copy, so the snap-side socket fix is the piece Valve can land fastest.
 
 ---

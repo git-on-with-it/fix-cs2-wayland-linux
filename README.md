@@ -23,22 +23,33 @@ Current version: **v1.0.0** (see `fix-cs2-wayland --version`).
 
 ## See the bug
 
+*(Video clip and screenshots by [u/Pretty_Library_2373](https://www.reddit.com/user/Pretty_Library_2373/) — reused with credit from the original report. If you are the author and would prefer they not be hosted here, open an issue and they will be removed immediately.)*
+
+The 12-second demo below is the exact in-game portion of the original 84-second Reddit video: crosshair up, camera stuck, aim barely able to turn:
+
 ![Stuck mouse demonstration](docs/media/mouse-bug-stuck.gif)
 
-The full 84-second clip with sound: [`docs/media/mouse-bug-linux-native.mp4`](docs/media/mouse-bug-linux-native.mp4) — or watch it on the original Reddit thread (linked below).
+The full 84-second clip untouched (video by u/Pretty_Library_2373): [`docs/media/mouse-bug-linux-native.mp4`](docs/media/mouse-bug-linux-native.mp4) — or watch it on the original Reddit thread (linked below).
 
 How the launcher forces X11 on Wayland desktops (`game/cs2.sh`):
 
 ![cs2.sh snippet](docs/media/cs2sh-snippet.png)
 
-Reference — the original report (video and screenshots by
-[u/Pretty_Library_2373](https://www.reddit.com/user/Pretty_Library_2373/)), r/cs2, May 14 2026:
+Reference — the original report (r/cs2, May 14 2026):
 
 - Thread: <https://www.reddit.com/r/cs2/comments/1td29d6/mouse_bug_linux_native/>
 - Video: <https://v.redd.it/tnzdwqp6i41h1>
 - Full post screenshot: [`docs/media/original-post-screenshot.png`](docs/media/original-post-screenshot.png)
 
-*If you are the original author of the clip and would prefer it not be hosted here, open an issue and it will be removed immediately.*
+## Fix status upstream (checked 2026-11-01)
+
+| Layer | Status |
+|---|---|
+| SDL bug itself ([libsdl-org/SDL#16163](https://github.com/libsdl-org/SDL/issues/16163)) | **Fixed** — merged 2026-09-10 ([PR #16267](https://github.com/libsdl-org/SDL/pull/16267)), shipped in SDL 3.4.18 |
+| Steam Linux Runtime sniper ([steam-runtime#857](https://github.com/ValveSoftware/steam-runtime/issues/857)) | **Closed** 2026-10-23 — sniper platform 3.0.20261021 now ships `libSDL3.so.0.4.18` (verified in the installed runtime) |
+| CS2 ([csgo-osx-linux#4354](https://github.com/ValveSoftware/csgo-osx-linux/issues/4354)) | **Still open**, reports continuing into November 2026 |
+
+Why CS2 is still broken even though the runtime fix shipped: **CS2 does not use the runtime's SDL.** It statically paths to its own bundled copy at `game/bin/linuxsteamrt64/libSDL3.so.0` (a `3.5.0-HEAD`-era build). Until Valve updates that copy or removes the `SDL_VIDEO_DRIVER=x11` default from `cs2.sh`, the bug persists — which is precisely why people kept reporting the problem after #857 was closed. This script sidesteps the buggy X11 path entirely by forcing native Wayland (where the bug does not exist).
 
 ## What it does
 
