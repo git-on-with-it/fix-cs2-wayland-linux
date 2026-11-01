@@ -21,6 +21,25 @@ Current version: **v1.0.0** (see `fix-cs2-wayland --version`).
    (`SteamLinuxRuntime_sniper` / pressure-vessel) drops the socket and
    CS2 exits on startup.
 
+## See the bug
+
+![Stuck mouse demonstration](docs/media/mouse-bug-stuck.gif)
+
+The full 84-second clip with sound: [`docs/media/mouse-bug-linux-native.mp4`](docs/media/mouse-bug-linux-native.mp4) — or watch it on the original Reddit thread (linked below).
+
+How the launcher forces X11 on Wayland desktops (`game/cs2.sh`):
+
+![cs2.sh snippet](docs/media/cs2sh-snippet.png)
+
+Reference — the original report (video and screenshots by
+[u/Pretty_Library_2373](https://www.reddit.com/user/Pretty_Library_2373/)), r/cs2, May 14 2026:
+
+- Thread: <https://www.reddit.com/r/cs2/comments/1td29d6/mouse_bug_linux_native/>
+- Video: <https://v.redd.it/tnzdwqp6i41h1>
+- Full post screenshot: [`docs/media/original-post-screenshot.png`](docs/media/original-post-screenshot.png)
+
+*If you are the original author of the clip and would prefer it not be hosted here, open an issue and it will be removed immediately.*
+
 ## What it does
 
 - Sets `export SDL_VIDEO_DRIVER=wayland` in `game/cs2.sh` (only on Wayland sessions).
@@ -73,8 +92,10 @@ STEAM_DIR=/games/Steam fix-cs2-wayland   # override library discovery
 ## Feedback
 
 Works for you? Please say so on the
-[issue thread](https://github.com/ValveSoftware/csgo-osx-linux/issues/4354) —
+[issue thread](https://github.com/ValveSoftware/csgo-osx-linux/issues/4354) and in the
+[Reddit thread](https://www.reddit.com/r/cs2/comments/1td29d6/mouse_bug_linux_native/) —
 Valve needs to know how many players this affects.
+Problems? Open an issue with the output of `fix-cs2-wayland --status`.
 
 ## Tested On
 - Ubuntu 26.10 (GNOME Wayland, XDG_SESSION_TYPE=wayland)

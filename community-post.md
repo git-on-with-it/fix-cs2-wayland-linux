@@ -59,3 +59,5 @@ git clone <REPO_URL> && cd fix-cs2-wayland
 Then fully restart Steam + CS2. `--status` shows what it detected, `--revert` puts everything back exactly as before (it saves per-file backups).
 
 Tested on Ubuntu 26.10 GNOME Wayland + Steam Snap: 0 stuck-mouse launches since, and the game now runs as a true Wayland window. Works also on native/Flatpak Steam installs. Bash-only, ~10 lines changed on your system, everything backed up.
+
+**Original report & video (credit u/Pretty_Library_2373):** <https://www.reddit.com/r/cs2/comments/1td29d6/mouse_bug_linux_native/> — a 30-second demo GIF and the full 84-second clip are embedded in the repo README, so newcomers can recognize their exact symptom at a glance and land directly on the fix.
