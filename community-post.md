@@ -1,7 +1,8 @@
 # Community Post — ready to publish
 
 Two ready-to-paste texts follow. Use the text that matches your target.
-Replace `<REPO_URL>` with your published GitHub repository URL before posting.
+Repository URL used in both texts:
+<https://github.com/git-on-with-it/fix-cs2-wayland-linux>
 
 ---
 
@@ -50,7 +51,7 @@ is missing.**
   longer listed (the SDL Wayland backend does not expose one). This matches
   the pre-fix reports of failing fullscreen: those runs were XWayland runs.
 
-**Fix (one command, no root, reversible):** <REPO_URL>
+**Fix (one command, no root, reversible):** https://github.com/git-on-with-it/fix-cs2-wayland-linux
 
 `fix-cs2-wayland` (bash, no sudo, no Python):
 
@@ -101,11 +102,11 @@ The root causes are two:
 - The Snap hides the Wayland socket from the game container. Thus the Wayland
   change fails without a message.
 
-**One-command fix (no sudo, reversible):** <REPO_URL>
+**One-command fix (no sudo, reversible):** https://github.com/git-on-with-it/fix-cs2-wayland-linux
 
 ```
 sudo apt install git   # if needed
-git clone <REPO_URL> && cd fix-cs2-wayland
+git clone https://github.com/git-on-with-it/fix-cs2-wayland-linux && cd fix-cs2-wayland
 ./fix-cs2-wayland
 ```
 
