@@ -1,0 +1,268 @@
+#!/usr/bin/env bash
+# fix-cs2-wayland — Universal Linux CS2 Wayland & Steam Snap Mouse Bug Fix
+# Version: 1.0.0
+#
+# Fixes:
+#   1. CS2 native Linux mouse stuck / tiny movement range under XWayland
+#      (ValveSoftware/csgo-osx-linux#4354, libsdl-org/SDL#16163) by switching
+#      CS2's SDL_VIDEO_DRIVER default from x11 to wayland on Wayland sessions.
+#   2. CS2 failing to launch with SDL_VIDEO_DRIVER=wayland on Ubuntu's Steam Snap
+#      because the Snap sets DISABLE_WAYLAND=1 and XDG_RUNTIME_DIR=/run/user/$UID/snap.steam
+#      without symlinking the host Wayland socket into snap.steam, so
+#      SteamLinuxRuntime_sniper (pressure-vessel) omits the socket from the container.
+#
+# Requirements: bash, coreutils, awk, sed. No python3, no sudo/root.
+# Supported installs: native Steam, Ubuntu Steam Snap, Flatpak Steam, custom libraries.
+#
+# Usage:
+#   fix-cs2-wayland              Apply the fix (skips safely if not on Wayland)
+#   fix-cs2-wayland --status     Show detected paths and current state
+#   fix-cs2-wayland --revert     Restore backups, remove service and symlink
+#   fix-cs2-wayland --force      Apply even when no Wayland session is detected
+#   fix-cs2-wayland --version    Print script version
+#   fix-cs2-wayland --help       Show this help
+
+set -euo pipefail
+
+VERSION="1.0.0"
+
+ACTION="apply"
+FORCE=0
+for arg in "$@"; do
+    case "$arg" in
+        --apply)  ACTION="apply" ;;
+        --status) ACTION="status" ;;
+        --revert) ACTION="revert" ;;
+        --force)  FORCE=1 ;;
+        -h|--help) ACTION="help" ;;
+        --version) ACTION="version" ;;
+        *)
+            echo "Unknown option: $arg (use --help)" >&2
+            exit 1
+            ;;
+    esac
+done
+
+UID_NUM="$(id -u)"
+WAYLAND_SOCK="${WAYLAND_DISPLAY:-wayland-0}"
+HOST_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/${UID_NUM}}"
+# If invoked from inside a snap, strip the /snap.* suffix to find the host dir
+case "$HOST_RUNTIME_DIR" in /snap.*) HOST_RUNTIME_DIR="${HOST_RUNTIME_DIR%%/snap.*}" ;; esac
+SNAP_RUNTIME_DIR="${HOST_RUNTIME_DIR}/snap.steam"
+SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+SERVICE_NAME="steam-snap-wayland.service"
+SERVICE_PATH="${SYSTEMD_USER_DIR}/${SERVICE_NAME}"
+MARKER='WAYLAND_DISPLAY:-wayland-0'
+
+help() {
+    awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
+}
+
+if [ "$ACTION" = "help" ]; then
+    help
+    exit 0
+fi
+
+if [ "$ACTION" = "version" ]; then
+    echo "fix-cs2-wayland v$VERSION"
+    exit 0
+fi
+
+if [ "$UID_NUM" -eq 0 ] || [ -n "${SUDO_USER:-}" ]; then
+    echo "Refusing to run as root/sudo: this fix belongs in your own user account." >&2
+    echo "Run it as the user who plays CS2." >&2
+    exit 1
+fi
+
+is_wayland_session() {
+    [ -S "${HOST_RUNTIME_DIR}/${WAYLAND_SOCK}" ]
+}
+
+is_steam_snap_installed() {
+    [ -d "$HOME/snap/steam" ] || [ -d "/snap/steam" ]
+}
+
+discover_steam_libraries() {
+    local roots=(
+        "${STEAM_DIR:-}"
+        "$HOME/.local/share/Steam"
+        "$HOME/steam"
+        "$HOME/.steam/steam"
+        "$HOME/.steam/root"
+        "$HOME/snap/steam/common/.local/share/Steam"
+        "$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam"
+    )
+    local seen=" "
+    local r real vdf lib
+    for r in "${roots[@]}"; do
+        [ -n "$r" ] && [ -d "$r" ] || continue
+        real="$(readlink -f "$r" 2>/dev/null || printf '%s' "$r")"
+        case "$seen" in *" $real "*) continue ;; esac
+        seen="$seen$real "
+        printf '%s\n' "$real"
+
+        vdf="$real/config/libraryfolders.vdf"
+        [ -f "$vdf" ] || vdf="$real/steamapps/libraryfolders.vdf"
+        if [ -f "$vdf" ]; then
+            while IFS= read -r lib; do
+                [ -n "$lib" ] && [ -d "$lib" ] || continue
+                real="$(readlink -f "$lib" 2>/dev/null || printf '%s' "$lib")"
+                case "$seen" in *" $real "*) continue ;; esac
+                seen="$seen$real "
+                printf '%s\n' "$real"
+            done < <(awk -F'"' '/"path"[[:space:]]*"/{print $4}' "$vdf" 2>/dev/null | sed 's#\\\\#/#g')
+        fi
+    done
+}
+
+mapfile -t STEAM_LIBS < <(discover_steam_libraries)
+
+CS2_SCRIPTS=()
+SLR_ENTRIES=()
+for lib in "${STEAM_LIBS[@]:-}"; do
+    [ -n "$lib" ] || continue
+    c="$lib/steamapps/common/Counter-Strike Global Offensive/game/cs2.sh"
+    s="$lib/steamapps/common/SteamLinuxRuntime_sniper/_v2-entry-point"
+    [ -f "$c" ] && CS2_SCRIPTS+=("$c")
+    [ -f "$s" ] && SLR_ENTRIES+=("$s")
+done
+
+show_status() {
+    echo "=== Environment ==="
+    echo "  Session type     : ${XDG_SESSION_TYPE:-unknown}"
+    echo "  Wayland socket   : $(is_wayland_session && echo "present (${HOST_RUNTIME_DIR}/${WAYLAND_SOCK})" || echo "not found")"
+    echo "  Steam Snap       : $(is_steam_snap_installed && echo "detected" || echo "not detected")"
+    if is_steam_snap_installed; then
+        if [ -L "${SNAP_RUNTIME_DIR}/${WAYLAND_SOCK}" ]; then
+            echo "  Snap socket link : $(ls -l "${SNAP_RUNTIME_DIR}/${WAYLAND_SOCK}" | sed 's/.* -> /-> /')"
+        else
+            echo "  Snap socket link : MISSING"
+        fi
+        echo "  Systemd service  : $([ -f "${SERVICE_PATH}" ] && echo "installed" || echo "not installed")"
+    fi
+    echo
+    echo "=== CS2 launchers (${#CS2_SCRIPTS[@]}) ==="
+    for f in "${CS2_SCRIPTS[@]:-}"; do
+        [ -n "$f" ] || continue
+        echo "  $f"
+        sed -n 's/^\([ \t]*\)\(.*SDL_VIDEO_DRIVER=.*\)/\1-> \2/p' "$f" | head -3 | sed 's/^/    /'
+    done
+    echo
+    echo "=== SteamLinuxRuntime_sniper entry points (${#SLR_ENTRIES[@]}) ==="
+    for f in "${SLR_ENTRIES[@]:-}"; do
+        [ -n "$f" ] || continue
+        if grep -q "$MARKER" "$f"; then
+            echo "  $f : patched"
+        else
+            echo "  $f : unpatched"
+        fi
+    done
+}
+
+patch_cs2_sh() {
+    local f="$1"
+    [ -f "${f}.backup-before-wayland-fix" ] || cp -p "$f" "${f}.backup-before-wayland-fix"
+    sed -i \
+        -e 's/export SDL_VIDEO_DRIVER=x11/export SDL_VIDEO_DRIVER=wayland/' \
+        -e 's/export SDL_VIDEO_DRIVER=$/export SDL_VIDEO_DRIVER=wayland/' \
+        "$f"
+    bash -n "$f"
+}
+
+patch_slr_entry() {
+    local f="$1"
+    grep -q "$MARKER" "$f" && return 0
+    [ -f "${f}.backup-before-wayland-fix" ] || cp -p "$f" "${f}.backup-before-wayland-fix"
+    awk '
+        !done && $0 == "set -eu" {
+            print
+            print "if [ -n \"${XDG_RUNTIME_DIR-}\" ] && [ -S \"${XDG_RUNTIME_DIR}/../@WDSOCK@\" ] && [ ! -e \"${XDG_RUNTIME_DIR}/@WDSOCK@\" ]; then"
+            print "    ln -sfn \"../@WDSOCK@\" \"${XDG_RUNTIME_DIR}/@WDSOCK@\""
+            print "fi"
+            done = 1
+            next
+        }
+        { print }
+    ' "$f" > "${f}.tmp"
+    sed -i 's/@WDSOCK@/\${WAYLAND_DISPLAY:-wayland-0}/g' "${f}.tmp"
+    chmod --reference="$f" "${f}.tmp"
+    mv "${f}.tmp" "$f"
+    sh -n "$f"
+}
+
+install_snap_wayland_bridge() {
+    mkdir -p -m 700 "${SNAP_RUNTIME_DIR}"
+    ln -sfn "../${WAYLAND_SOCK}" "${SNAP_RUNTIME_DIR}/${WAYLAND_SOCK}"
+    if command -v systemctl >/dev/null 2>&1; then
+        mkdir -p "${SYSTEMD_USER_DIR}"
+        cat > "${SERVICE_PATH}" <<EOF
+[Unit]
+Description=Expose Wayland socket inside Steam Snap XDG_RUNTIME_DIR
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'mkdir -p -m 700 "%t/snap.steam" && ln -sfn "../\$\${WAYLAND_DISPLAY:-wayland-0}" "%t/snap.steam/\$\${WAYLAND_DISPLAY:-wayland-0}"'
+
+[Install]
+WantedBy=default.target
+EOF
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        systemctl --user enable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
+    fi
+}
+
+revert_all() {
+    local f
+    for f in "${CS2_SCRIPTS[@]:-}" "${SLR_ENTRIES[@]:-}"; do
+        [ -n "$f" ] || continue
+        if [ -f "${f}.backup-before-wayland-fix" ]; then
+            cp -p "${f}.backup-before-wayland-fix" "$f"
+            echo "Restored: $f"
+        fi
+    done
+    if [ -f "${SERVICE_PATH}" ]; then
+        systemctl --user disable "${SERVICE_NAME}" >/dev/null 2>&1 || true
+        rm -f "${SERVICE_PATH}"
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        echo "Removed : ${SERVICE_PATH}"
+    fi
+    if [ -L "${SNAP_RUNTIME_DIR}/${WAYLAND_SOCK}" ]; then
+        rm -f "${SNAP_RUNTIME_DIR}/${WAYLAND_SOCK}"
+        echo "Removed : ${SNAP_RUNTIME_DIR}/${WAYLAND_SOCK}"
+    fi
+}
+
+case "$ACTION" in
+    status)
+        show_status
+        ;;
+    revert)
+        revert_all
+        ;;
+    apply)
+        if [ "${#CS2_SCRIPTS[@]}" -eq 0 ]; then
+            echo "Error: no 'Counter-Strike Global Offensive/game/cs2.sh' found in any Steam library." >&2
+            echo "Override detection with: STEAM_DIR=/path/to/Steam fix-cs2-wayland" >&2
+            exit 1
+        fi
+        if ! is_wayland_session && [ "$FORCE" -ne 1 ]; then
+            echo "No Wayland socket found at ${HOST_RUNTIME_DIR}/${WAYLAND_SOCK}."
+            echo "On a pure X11 session the CS2 bug does not apply; nothing was changed."
+            echo "To apply anyway (e.g. testing), run: fix-cs2-wayland --force"
+            exit 0
+        fi
+        if is_steam_snap_installed; then
+            install_snap_wayland_bridge
+            for f in "${SLR_ENTRIES[@]:-}"; do
+                [ -n "$f" ] && patch_slr_entry "$f"
+            done
+        fi
+        for f in "${CS2_SCRIPTS[@]:-}"; do
+            [ -n "$f" ] && patch_cs2_sh "$f"
+        done
+        echo "OK: CS2 Wayland fix applied."
+        echo
+        show_status
+        ;;
+esac
