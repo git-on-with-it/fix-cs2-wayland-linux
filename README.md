@@ -109,9 +109,17 @@ Before the fix, true fullscreen failed on this machine:
 - Sometimes the GNOME top bar stayed over the game.
 - Sometimes CS2 changed back to borderless at the next start.
 
-Important: all these tests ran on X11/XWayland, not on Wayland. CS2 now runs
-on Wayland here. True fullscreen is not tested on Wayland yet. It may work
-well now.
+Important: all these tests ran on X11/XWayland, not on Wayland. After the
+fix, CS2 runs on Wayland here. The result is different:
+
+- On Wayland, the CS2 video menu offers only `Windowed` and
+  `Fullscreen Windowed`. Plain `Fullscreen` is not in the list anymore.
+- Reason: the SDL Wayland backend does not give CS2 an exclusive fullscreen
+  mode. On Wayland, borderless is the normal fullscreen path. The
+  compositor manages it directly.
+- Thus the old fullscreen problems do not apply on Wayland. Borderless is
+  the mode to use here. The author tested it on 2026-11-01:
+  no input lag, no stuck mouse.
 
 **Community test (voluntary).** If you had the fullscreen lag symptom, and
 you applied this fix:
@@ -122,6 +130,12 @@ you applied this fix:
 
 Every result helps: better, same, or worse. Write down your `cs2_video.txt`
 values before the test.
+
+Update 2026-11-01, author test: on Wayland, plain `Fullscreen` is not in the
+CS2 menu at all. Only `Windowed` and `Fullscreen Windowed` are offered.
+`Fullscreen Windowed` works with no input lag and no stuck mouse. If your
+menu still shows plain `Fullscreen`, you are still running on XWayland —
+check `fix-cs2-wayland --status`.
 
 ## Install
 

@@ -45,6 +45,10 @@ is missing.**
   succeeded. `SDL_GetCurrentVideoDriver()` returned `wayland`.
 - After the fix, CS2 runs with no X11 window (no XWayland). The mouse bug
   did not occur again in many starts.
+- Extra data point: under the Wayland driver, CS2's video menu offers only
+  `Windowed` and `Fullscreen Windowed`. Plain exclusive `Fullscreen` is no
+  longer listed (the SDL Wayland backend does not expose one). This matches
+  the pre-fix reports of failing fullscreen: those runs were XWayland runs.
 
 **Fix (one command, no root, reversible):** <REPO_URL>
 
