@@ -38,6 +38,8 @@ changes. `--revert` restores all files and removes the unit and symlink.
 - [LICENSE](LICENSE): MIT license text.
 - [community-post.md](community-post.md): ready-to-paste texts for the Valve
   issue thread and for a Reddit post.
+- [cs2-display-test.py](cs2-display-test.py): interactive cross-platform
+  VSync/VRR test assistant. It writes a Markdown report and changes nothing.
 
 ## Key facts for answers
 
