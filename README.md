@@ -176,26 +176,6 @@ STEAM_DIR=/games/Steam fix-cs2-wayland   # set the Steam library location
   (Steam → "Launch in a terminal"). The SDL Wayland backend needs a running
   Wayland compositor (GNOME, KDE, Sway, and others).
 
-## VSync and VRR diagnosis
-
-Use `cs2-display-test.py` for a guided test. It works on Linux, Windows, and
-macOS. It does not change system or game settings.
-
-```bash
-python3 cs2-display-test.py
-```
-
-The tool tests these combinations:
-
-1. VSync off, VRR off.
-2. VSync on, VRR off.
-3. VSync off, VRR on.
-4. VSync on, VRR on.
-
-Keep the same map, resolution, display mode, and FPS limit for every test.
-The tool detects MangoHud when available and writes a Markdown report.
-MangoHud measures frame pacing. It does not measure complete input latency.
-
 ## Feedback
 
 - It works? Write a comment on the
